@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Endless Runner City - No Obstacle</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
+    #score {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: white;
+      font-size: 18px;
+      z-index: 5;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.159.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.159.0/examples/jsm/"
+      }
+    }
+</script>
+</head>
+<body>
+  <div id="score">Score: 0</div>
+  <div id="debug" style="
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  color: #0f0;
+  font-size: 14px;
+  z-index: 10;
+  background: rgba(0,0,0,0.5);
+  padding: 5px;
+  border-radius: 4px;
+  font-family: monospace;
+">Mouse: (0, 0)</div>
+<div id="debug2" style="position: absolute; top: 50px; left: 10px; color: white; font-family: monospace; z-index: 10;"></div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+    let scene, camera, renderer;
+    let player, speed = 0.2;
+    let direction = new THREE.Vector3(0, 0, -1);
+    let lastDirection = direction.clone();
+    let lastRoadPos = new THREE.Vector3(0, 0, 0);
+
+    const roads = [], turnZones = [], particles = [];
+
+    let lastMouseX = null;
+    let score = 0;
+    let gameRunning = true;
+    let roadTimer = 0;
+
+    function init() {
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xcccccc);
+
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.set(0, 2, 5);
+      camera.lookAt(0, 0, 0);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      scene.add(new THREE.AmbientLight(0xffffff, 1));
+
+      const loader = new GLTFLoader();
+      loader.load('./sphere.glb',
+        gltf => {
+          player = gltf.scene;
+          player.scale.set(0.5, 0.5, 0.5);
+          player.position.copy(lastRoadPos.clone().add(new THREE.Vector3(0, 0.5, 0)));
+          scene.add(player);
+          animate();
+        });
+
+      for (let i = 0; i < 10; i++) addRoadSegment();
+
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('resize', onWindowResize);
+    }
+
+    function addRoadSegment() {
+      const len = 10;
+      const road = new THREE.Mesh(
+        new THREE.BoxGeometry(4, 0.1, len),
+        new THREE.MeshStandardMaterial({ color: 0x222222 })
+      );
+
+      lastRoadPos.addScaledVector(lastDirection, len);
+      road.position.copy(lastRoadPos);
+      scene.add(road);
+      roads.push(road);
+
+      if (Math.random() < 0.15) {
+        const turn = new THREE.Mesh(
+          new THREE.BoxGeometry(1, 0.1, 1),
+          new THREE.MeshStandardMaterial({ color: 0x00ff00 })
+        );
+        turn.position.copy(lastRoadPos.clone());
+        scene.add(turn);
+        turnZones.push(turn);
+      }
+
+      addBuildingsAround(lastRoadPos, lastDirection);
+    }
+
+    function addBuildingsAround(center, dir) {
+      const perp = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
+      for (let i = -2; i <= 2; i++) {
+        const offset = perp.clone().multiplyScalar(6 + Math.random() * 4).add(dir.clone().multiplyScalar(i * 3));
+        const pos = center.clone().add(offset);
+        const height = 2 + Math.random() * 8;
+        const building = new THREE.Mesh(
+          new THREE.BoxGeometry(2, height, 2),
+          new THREE.MeshStandardMaterial({ color: 0x444444 })
+        );
+        building.position.copy(pos);
+        building.position.y = height / 2;
+        scene.add(building);
+      }
+    }
+
+    const debugEl = document.getElementById("debug2");
+    function onMouseMove(e) {
+      if (!gameRunning || !player) return;
+      document.getElementById('debug').innerText = `Mouse: (${e.clientX}, ${e.clientY})`;
+      if (lastMouseX !== null) {
+        const dx = e.clientX - lastMouseX;
+        debugEl.innerText = `Mouse dx: ${dx}`;
+        const turn = dx * 0.0025;
+        const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -turn);
+        direction.applyQuaternion(q);
+        player.quaternion.slerp(q, 0.1);
+      }
+      lastMouseX = e.clientX;
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (!gameRunning || !player) return;
+
+      player.position.addScaledVector(direction, speed);
+      camera.position.copy(player.position.clone().add(new THREE.Vector3(0, 2, 5)));
+      camera.lookAt(player.position);
+
+      roadTimer += 0.016;
+      if (roadTimer >= 0.4) {
+        roadTimer = 0;
+        addRoadSegment();
+      }
+
+    //   turnZones.forEach(zone => {
+    //     if (zone.visible && zone.position.distanceTo(player.position) < 1) {
+    //       zone.visible = false;
+    //       const side = Math.random() < 0.5 ? -1 : 1;
+    //       const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), side * Math.PI / 2);
+    //       direction.applyQuaternion(q);
+    //       lastDirection.copy(direction.clone());
+    //       player.quaternion.slerp(q, 0.2);
+    //     }
+    //   });
+
+      score = Math.floor(player.position.length());
+      document.getElementById('score').innerText = 'Score: ' + score;
+
+      renderer.render(scene, camera);
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    init();
+  </script>
+</body>
+</html>
