@@ -27,17 +27,17 @@
   <div id="score">Score: 0</div>
   <div id="debug" style="
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 100px;
+  right: 100px;
   color: #0f0;
-  font-size: 14px;
+  font-size: 24px;
   z-index: 10;
   background: rgba(0,0,0,0.5);
   padding: 5px;
   border-radius: 4px;
   font-family: monospace;
 ">Mouse: (0, 0)</div>
-<div id="debug2" style="position: absolute; top: 50px; left: 10px; color: white; font-family: monospace; z-index: 10;"></div>
+<div id="debug2" style="position: absolute; top: 100px; left: 100px; color: white; font-family: monospace; z-index: 10;font-size: 25px;"></div>
 
   <script type="module">
     import * as THREE from 'three';
@@ -98,6 +98,21 @@
       scene.add(road);
       roads.push(road);
 
+      // Dinding kiri-kanan
+      const wallLeft = new THREE.Mesh(
+        new THREE.BoxGeometry(0.2, 1, len),
+        new THREE.MeshStandardMaterial({ color: 0x333333 })
+      );
+      wallLeft.position.copy(lastRoadPos.clone().add(new THREE.Vector3(-2.1, 0.5, 0)));
+      scene.add(wallLeft);
+
+      const wallRight = new THREE.Mesh(
+        new THREE.BoxGeometry(0.2, 1, len),
+        new THREE.MeshStandardMaterial({ color: 0x333333 })
+      );
+      wallRight.position.copy(lastRoadPos.clone().add(new THREE.Vector3(2.1, 0.5, 0)));
+      scene.add(wallRight);
+
       if (Math.random() < 0.15) {
         const turn = new THREE.Mesh(
           new THREE.BoxGeometry(1, 0.1, 1),
@@ -131,9 +146,10 @@
     function onMouseMove(e) {
       if (!gameRunning || !player) return;
       document.getElementById('debug').innerText = `Mouse: (${e.clientX}, ${e.clientY})`;
+
       if (lastMouseX !== null) {
         const dx = e.clientX - lastMouseX;
-        debugEl.innerText = `Mouse dx: ${dx}`;
+        debugEl.innerText = `dx: ${dx}`;
         const turn = dx * 0.0025;
         const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -turn);
         direction.applyQuaternion(q);
@@ -147,6 +163,11 @@
       if (!gameRunning || !player) return;
 
       player.position.addScaledVector(direction, speed);
+
+      // Batasi gerak kiri-kanan
+      if (player.position.x > 1.8) player.position.x = 1.8;
+      if (player.position.x < -1.8) player.position.x = -1.8;
+
       camera.position.copy(player.position.clone().add(new THREE.Vector3(0, 2, 5)));
       camera.lookAt(player.position);
 
@@ -155,17 +176,6 @@
         roadTimer = 0;
         addRoadSegment();
       }
-
-    //   turnZones.forEach(zone => {
-    //     if (zone.visible && zone.position.distanceTo(player.position) < 1) {
-    //       zone.visible = false;
-    //       const side = Math.random() < 0.5 ? -1 : 1;
-    //       const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), side * Math.PI / 2);
-    //       direction.applyQuaternion(q);
-    //       lastDirection.copy(direction.clone());
-    //       player.quaternion.slerp(q, 0.2);
-    //     }
-    //   });
 
       score = Math.floor(player.position.length());
       document.getElementById('score').innerText = 'Score: ' + score;
