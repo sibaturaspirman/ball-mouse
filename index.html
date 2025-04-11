@@ -150,13 +150,18 @@
       if (lastMouseX !== null) {
         const dx = e.clientX - lastMouseX;
         debugEl.innerText = `dx: ${dx}`;
-        const turn = dx * 0.0025;
+
+        const sensitivity = 0.0005;
+        const maxTurn = Math.PI / 12; // 15°
+        const turn = THREE.MathUtils.clamp(dx * sensitivity, -maxTurn, maxTurn);
+
         const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -turn);
         direction.applyQuaternion(q);
         player.quaternion.slerp(q, 0.1);
       }
       lastMouseX = e.clientX;
     }
+
 
     function animate() {
       requestAnimationFrame(animate);
